@@ -3,9 +3,11 @@ import { dataStore, Order, Driver } from '@/lib/data';
 import { DriverHeader } from './DriverHeader';
 import { OrderCard } from './OrderCard';
 import { BottomNavigation } from './BottomNavigation';
+import { VoiceAssistant } from './VoiceAssistant';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Package, DollarSign, TrendingUp, User, Phone, MapPin, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Clock, Package, DollarSign, TrendingUp, User, Phone, MapPin, Star, AlertTriangle, MessageSquare, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function Dashboard() {
@@ -61,11 +63,83 @@ export function Dashboard() {
     dataStore.updateDriverStatus(newStatus);
     refreshData();
     
+    if (newStatus === 'online') {
+      dataStore.startTrip(driver.location.address);
+    } else {
+      const trip = dataStore.getCurrentTrip();
+      if (trip) {
+        dataStore.endTrip(driver.location.address);
+      }
+    }
+    
     toast({
       title: newStatus === 'online' ? "You're Online!" : "You're Offline",
       description: newStatus === 'online' 
         ? "You'll receive new delivery requests." 
         : "You won't receive new delivery requests.",
+    });
+  };
+
+  const handleVoiceCommand = (command: string) => {
+    const availableOrders = dataStore.getAvailableOrders();
+    const activeOrders = dataStore.getActiveOrders();
+    
+    switch (command) {
+      case 'accept_order':
+        if (availableOrders.length > 0) {
+          handleAcceptOrder(availableOrders[0].id);
+        }
+        break;
+      case 'decline_order':
+        if (availableOrders.length > 0) {
+          handleDeclineOrder(availableOrders[0].id);
+        }
+        break;
+      case 'mark_picked_up':
+        const acceptedOrder = activeOrders.find(o => o.status === 'accepted');
+        if (acceptedOrder) {
+          handleUpdateStatus(acceptedOrder.id, 'picked_up');
+        }
+        break;
+      case 'mark_delivered':
+        const pickedUpOrder = activeOrders.find(o => o.status === 'picked_up' || o.status === 'in_transit');
+        if (pickedUpOrder) {
+          handleUpdateStatus(pickedUpOrder.id, 'delivered');
+        }
+        break;
+      case 'go_online':
+        if (driver?.status !== 'online') {
+          handleToggleDriverStatus();
+        }
+        break;
+      case 'go_offline':
+        if (driver?.status === 'online') {
+          handleToggleDriverStatus();
+        }
+        break;
+      case 'show_earnings':
+        setActiveTab('earnings');
+        break;
+      case 'show_orders':
+        setActiveTab('active');
+        break;
+    }
+  };
+
+  const handleSOS = () => {
+    dataStore.sendSOSAlert();
+    toast({
+      title: "SOS Alert Sent",
+      description: "Emergency services have been notified",
+      variant: "destructive"
+    });
+  };
+
+  const handleReportIssue = () => {
+    dataStore.reportIssue("Issue reported via voice/quick action");
+    toast({
+      title: "Issue Reported",
+      description: "Your report has been submitted to support",
     });
   };
 
@@ -318,6 +392,28 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      <VoiceAssistant onCommand={handleVoiceCommand} />
+      
+      {/* Emergency Actions */}
+      <div className="fixed bottom-20 right-4 z-40 space-y-2">
+        <Button
+          onClick={handleSOS}
+          variant="destructive"
+          size="sm"
+          className="h-12 w-12 rounded-full p-0 shadow-lg"
+        >
+          <AlertTriangle className="h-5 w-5" />
+        </Button>
+        <Button
+          onClick={handleReportIssue}
+          variant="secondary"
+          size="sm"
+          className="h-12 w-12 rounded-full p-0 shadow-lg"
+        >
+          <MessageSquare className="h-5 w-5" />
+        </Button>
+      </div>
+
       {renderContent()}
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
     </div>

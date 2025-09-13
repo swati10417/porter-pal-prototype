@@ -45,6 +45,26 @@ export interface Driver {
   };
 }
 
+export interface NotificationData {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: string;
+  read: boolean;
+}
+
+export interface TripData {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  startLocation: string;
+  endLocation?: string;
+  distance: number;
+  earnings: number;
+  orders: string[];
+}
+
 // Mock data
 export const mockDriver: Driver = {
   id: '1',
@@ -152,6 +172,9 @@ export const mockOrders: Order[] = [
 class DataStore {
   private orders: Order[] = [...mockOrders];
   private driver: Driver = { ...mockDriver };
+  private notifications: NotificationData[] = [];
+  private currentTrip: TripData | null = null;
+  private tripHistory: TripData[] = [];
 
   getOrders(): Order[] {
     return this.orders;
@@ -224,6 +247,96 @@ class DataStore {
     return this.getCompletedOrders()
       .filter(order => new Date(order.deliveredAt || '').toDateString() === today)
       .length;
+  }
+
+  // Notification management
+  addNotification(notification: Omit<NotificationData, 'id' | 'timestamp' | 'read'>): void {
+    const newNotification: NotificationData = {
+      ...notification,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    this.notifications.unshift(newNotification);
+  }
+
+  getNotifications(): NotificationData[] {
+    return this.notifications;
+  }
+
+  markNotificationRead(id: string): void {
+    const notification = this.notifications.find(n => n.id === id);
+    if (notification) {
+      notification.read = true;
+    }
+  }
+
+  getUnreadNotificationsCount(): number {
+    return this.notifications.filter(n => !n.read).length;
+  }
+
+  // Trip management
+  startTrip(startLocation: string): void {
+    this.currentTrip = {
+      id: Date.now().toString(),
+      startTime: new Date().toISOString(),
+      startLocation,
+      distance: 0,
+      earnings: 0,
+      orders: []
+    };
+  }
+
+  endTrip(endLocation: string): TripData | null {
+    if (!this.currentTrip) return null;
+
+    const trip: TripData = {
+      ...this.currentTrip,
+      endTime: new Date().toISOString(),
+      endLocation
+    };
+
+    this.tripHistory.unshift(trip);
+    this.currentTrip = null;
+    
+    return trip;
+  }
+
+  getCurrentTrip(): TripData | null {
+    return this.currentTrip;
+  }
+
+  getTripHistory(): TripData[] {
+    return this.tripHistory;
+  }
+
+  updateTripDistance(additionalDistance: number): void {
+    if (this.currentTrip) {
+      this.currentTrip.distance += additionalDistance;
+    }
+  }
+
+  addOrderToTrip(orderId: string): void {
+    if (this.currentTrip && !this.currentTrip.orders.includes(orderId)) {
+      this.currentTrip.orders.push(orderId);
+    }
+  }
+
+  // Emergency features
+  sendSOSAlert(): void {
+    this.addNotification({
+      title: 'SOS Alert Sent',
+      message: 'Emergency services and Porter support have been notified of your location.',
+      type: 'warning'
+    });
+  }
+
+  reportIssue(issue: string): void {
+    this.addNotification({
+      title: 'Issue Reported',
+      message: `Your report: "${issue}" has been submitted to Porter support.`,
+      type: 'info'
+    });
   }
 }
 
